@@ -61,6 +61,23 @@ jobs:
       - name: Build JAR
         run: ./gradlew bootJar
       
+      - name: Debug - Check if secrets exist
+        run: |
+          echo "Checking AWS secrets..."
+          if [ -z "$AWS_KEY" ]; then
+            echo " AWS_ACCESS_KEY_ID is EMPTY or NOT SET"
+          else
+            echo " AWS_ACCESS_KEY_ID is set (length: ${#AWS_KEY} characters)"
+          fi
+          if [ -z "$AWS_SECRET" ]; then
+            echo " AWS_SECRET_ACCESS_KEY is EMPTY or NOT SET"
+          else
+            echo " AWS_SECRET_ACCESS_KEY is set (length: ${#AWS_SECRET} characters)"
+          fi
+        env:
+          AWS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
