@@ -37,11 +37,26 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Download current task definition
+    - name: Download and clean task definition
       run: |
         aws ecs describe-task-definition \
           --task-definition ${{ env.ECS_TASK_DEFINITION }} \
-          --query taskDefinition > task-definition.json
+          --query taskDefinition > task-definition-raw.json
+        
+        # Remove fields that cause issues with the deploy action
+        cat task-definition-raw.json | jq 'del(
+          .taskDefinitionArn,
+          .revision,
+          .status,
+          .requiresAttributes,
+          .compatibilities,
+          .registeredAt,
+          .registeredBy,
+          .enableFaultInjection
+        )' > task-definition.json
+        
+        echo "Cleaned task definition:"
+        cat task-definition.json
 
     - name: Fill in the new image ID in the task definition
       id: task-def
