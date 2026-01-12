@@ -11,7 +11,7 @@ public class HomeController {
 
     @GetMapping("/")
     public String getGreeting() {
-        return "Welcome to the Cloud Native Book Catalog! Sravan ";
+        return "Welcome to the Cloud Native Book Catalog! Auto deploy ";
     }
 
     @GetMapping("/greeting/{name}")

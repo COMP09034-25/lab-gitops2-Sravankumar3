@@ -3,8 +3,7 @@ name: Deploy to AWS ECS
 on:
   workflow_run:
     workflows: ["Commit Stage"]
-    types:
-      - completed
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -60,9 +59,8 @@ jobs:
       with:
         task-definition: task-definition.json
         container-name: ${{ env.CONTAINER_NAME }}
-        image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+        image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
 
-    
     - name: Register new task definition revision
       id: register
       run: |
@@ -73,7 +71,6 @@ jobs:
 
         echo "revision=$REVISION" >> $GITHUB_OUTPUT
 
-    
     - name: Deploy new revision to ECS
       run: |
         aws ecs update-service \
@@ -82,8 +79,12 @@ jobs:
           --task-definition ${{ env.ECS_TASK_DEFINITION }}:${{ steps.register.outputs.revision }} \
           --force-new-deployment
 
+        aws ecs wait services-stable \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }}
+
     - name: Deployment Summary
       run: |
         echo " Deployment successful!"
         echo " New Revision: ${{ steps.register.outputs.revision }}"
-        echo " Image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+        echo " Image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest"
