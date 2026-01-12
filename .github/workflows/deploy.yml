@@ -43,7 +43,6 @@ jobs:
           --task-definition ${{ env.ECS_TASK_DEFINITION }} \
           --query taskDefinition > task-definition-raw.json
         
-        # Remove fields that cause issues with the deploy action
         cat task-definition-raw.json | jq 'del(
           .taskDefinitionArn,
           .revision,
@@ -54,32 +53,37 @@ jobs:
           .registeredBy,
           .enableFaultInjection
         )' > task-definition.json
-        
-        echo "Cleaned task definition:"
-        cat task-definition.json
 
-    - name: Fill in the new image ID in the task definition
+    - name: Inject new image into task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
       with:
         task-definition: task-definition.json
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
-    - name: Deploy Amazon ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-      with:
-        task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: ${{ env.ECS_SERVICE }}
-        cluster: ${{ env.ECS_CLUSTER }}
-        wait-for-service-stability: true
+    
+    - name: Register new task definition revision
+      id: register
+      run: |
+        REVISION=$(aws ecs register-task-definition \
+          --cli-input-json file://${{ steps.task-def.outputs.task-definition }} \
+          --query 'taskDefinition.revision' \
+          --output text)
+
+        echo "revision=$REVISION" >> $GITHUB_OUTPUT
+
+    
+    - name: Deploy new revision to ECS
+      run: |
+        aws ecs update-service \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service ${{ env.ECS_SERVICE }} \
+          --task-definition ${{ env.ECS_TASK_DEFINITION }}:${{ steps.register.outputs.revision }} \
+          --force-new-deployment
 
     - name: Deployment Summary
-      if: success()
       run: |
         echo " Deployment successful!"
+        echo " New Revision: ${{ steps.register.outputs.revision }}"
         echo " Image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
-        echo " Service: ${{ env.ECS_SERVICE }}"
-        echo " Cluster: ${{ env.ECS_CLUSTER }}"
